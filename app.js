@@ -191,6 +191,7 @@ function navigate(page) {
   if (page === 'audit') loadAuditLog();
   if (page === 'marketplace') loadMarketplace();
   if (page === 'my-orders') loadMyOrders();
+  if (page === 'buyer-dashboard') loadBuyerDashboard();
 }
 
 // ─────────────────────────────────────────────
@@ -257,6 +258,93 @@ function dealCard(deal, showActions = false) {
     </div>
   `;
 }
+
+// ─────────────────────────────────────────────
+//  BUYER DASHBOARD & MATCHMAKING
+// ─────────────────────────────────────────────
+async function loadBuyerDashboard() {
+  try {
+    // Re-using common stats endpoint or you could have a specific buyer one
+    const { stats, recent_orders } = await api('GET', '/api/dashboard/buyer-stats');
+    
+    setStatCard('stat-spent', `$${formatNumber(stats.total_spent)}`, 'USD equivalent');
+    setStatCard('stat-buyer-rating', `${stats.buyer_rating.toFixed(1)}`, 'Out of 5.0');
+    setStatCard('stat-active-orders', stats.active_orders, 'In progress');
+    setStatCard('stat-completed-orders', stats.completed_orders, 'All time');
+
+    const container = document.getElementById('recent-orders-list');
+    if (!recent_orders || !recent_orders.length) {
+      container.innerHTML = emptyState('◎', 'No orders yet. Start shopping in the marketplace.');
+    } else {
+      container.innerHTML = recent_orders.map(order => orderCard(order)).join('');
+    }
+
+    // Auto load matches
+    loadAutoMatches();
+  } catch (err) {
+    console.error("Buyer Dashboard Error:", err);
+  }
+}
+
+async function loadAutoMatches() {
+  const container = document.getElementById('auto-matches-list');
+  container.innerHTML = '<div class="loading-spinner">Analyzing deals...</div>';
+  
+  try {
+    const { matches } = await api('GET', '/api/marketplace/matches');
+    
+    if (!matches || !matches.length) {
+      container.innerHTML = emptyState('🤖', 'No ideal matches found. Try updating your preferences.');
+      return;
+    }
+
+    container.innerHTML = matches.map(m => matchCard(m)).join('');
+  } catch (err) {
+    container.innerHTML = emptyState('!', 'Failed to load matches: ' + err.message);
+  }
+}
+
+function matchCard(match) {
+  const { deal, score } = match;
+  const matchPercent = Math.min(100, Math.max(0, Math.round(score)));
+  
+  return `
+    <div class="deal-card" onclick="openMarketplaceDeal('${deal.id}')" style="border-left: 4px solid var(--teal)">
+      <div style="flex:1">
+        <div class="deal-product">
+          ${escHtml(deal.product_name)} 
+          <span class="badge" style="background: rgba(150,187,187,0.2); color: var(--teal); margin-left:8px">${matchPercent}% Match</span>
+        </div>
+        <div class="deal-route">${deal.origin_country} → ${deal.dest_country} · Verfied Grade: ${deal.declared_grade}</div>
+        <div style="font-size: 0.8em; color: var(--text-dim); margin-top:4px">Seller: ${escHtml(deal.seller_company)} (Trust: ${deal.seller_trust_score.toFixed(1)})</div>
+      </div>
+      <div style="text-align:right">
+        <div class="deal-price">$${formatNumber(deal.final_price)}</div>
+        <button class="btn-primary" style="font-size: 0.75rem; padding: 4px 12px; margin-top:8px">View Deal</button>
+      </div>
+    </div>
+  `;
+}
+
+function orderCard(order) {
+  return `
+    <div class="deal-card status-${order.status}">
+      <div style="flex:1">
+        <div class="deal-product">${escHtml(order.product_name)}</div>
+        <div class="deal-route">${order.quantity} units · Agreed Price: $${formatNumber(order.agreed_price)}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="deal-status status-${order.status}">${order.status}</div>
+      </div>
+    </div>
+  `;
+}
+
+function openMarketplaceDeal(dealId) {
+  navigate('marketplace');
+  // Logic to scroll to or highlight the deal could go here
+}
+
 
 async function openDealModal(dealId) {
   try {
@@ -735,31 +823,72 @@ function switchRole(role) {
 }
 
 
-// Marketplace = deals
+// Marketplace = browse all active deals
 async function loadMarketplace() {
+  const container = document.getElementById('marketplace-grid');
+  if (!container) return;
+
+  const searchInput = document.getElementById('mkt-search');
+  const originInput = document.getElementById('mkt-filter-origin');
+  
+  const query = searchInput ? searchInput.value.trim() : '';
+  const origin = originInput ? originInput.value : '';
+
+  container.innerHTML = '<div class="loading-spinner">Searching deals...</div>';
+
   try {
-    const deals = await api('GET', '/api/deals');
+    let url = '/api/marketplace/deals?';
+    if (query) url += `search=${encodeURIComponent(query)}&`;
+    if (origin) url += `origin=${encodeURIComponent(origin)}&`;
 
-    const container = document.getElementById('marketplace-grid');
-    if (!container) return;
+    const { deals } = await api('GET', url);
 
-    container.innerHTML = '';
+    if (!deals || !deals.length) {
+      let msg = 'No deals found matching your criteria from other sellers.';
+      if (origin || query) msg += '<br>Try broader search terms.';
+      msg += '<p style="font-size:0.75rem; color:var(--text-dim); margin-top:1rem; opacity:0.8">Note: To prevent self-trading, your own deals are hidden from this view.</p>';
+      
+      container.innerHTML = emptyState('🔍', msg);
+      return;
+    }
 
-    deals.forEach(d => {
-      container.innerHTML += `
-        <div class="deal-card">
-          <h3>${d.product_name || 'Product'}</h3>
-          <p>Price: $${d.price}</p>
-          <p>${d.origin} → ${d.destination}</p>
-          <button onclick="buyDeal('${d.id}')">Buy</button>
+    container.innerHTML = deals.map(d => `
+      <div class="deal-card" style="flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div class="deal-product" style="font-size: 1.1rem;">${escHtml(d.product_name)}</div>
+          <div class="deal-price" style="font-size: 1.1rem; color: var(--teal);">$${formatNumber(d.final_price)}</div>
         </div>
-      `;
-    });
+        
+        <div class="deal-route" style="margin: 0.25rem 0 0.75rem;">
+          <span style="color: var(--text-secondary)">${d.origin_country}</span> 
+          <span style="color: var(--teal); margin: 0 0.4rem;">→</span> 
+          <span style="color: var(--text-secondary)">${d.dest_country}</span>
+          <span style="margin-left: 0.75rem; color: var(--text-dim); opacity: 0.8;">· ${d.quantity} ${d.unit || 'MT'}</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;">
+          <div class="tier-badge ${d.seller_tier || 'medium'}" style="font-size: 0.6rem;">${(d.seller_tier || 'medium').toUpperCase()} TIER</div>
+          <div style="font-size: 0.75rem; color: var(--text-dim);">Seller: ${escHtml(d.seller_company)} (${(d.seller_trust_score || 70).toFixed(1)} Trust)</div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; border-top: 1px solid var(--border); pt: 1rem; margin-top: 0.5rem; padding-top: 0.75rem;">
+          <button class="btn-primary" style="flex: 1; margin: 0;" onclick="buyDeal('${d.id}', ${d.quantity})">Instant Purchase</button>
+          <button class="btn-secondary" style="padding: 0.6rem;" onclick="openMarketplaceDealDetail('${d.id}')">Details</button>
+        </div>
+      </div>
+    `).join('');
 
   } catch (err) {
     console.error("Marketplace error:", err);
+    container.innerHTML = emptyState('!', 'Failed to load marketplace: ' + err.message);
   }
 }
+
+function openMarketplaceDealDetail(dealId) {
+  // Can reuse existing deal modal logic but maybe with buyer-specific actions
+  openDealModal(dealId);
+}
+
 
 
 // Orders = my deals
@@ -788,16 +917,23 @@ async function loadMyOrders() {
 
 
 // Buy action
-async function buyDeal(dealId) {
+async function buyDeal(dealId, qty) {
   try {
-    await api('POST', `/api/deals/${dealId}/buy`);
+    const body = {
+      deal_id: dealId,
+      quantity: qty,
+      wallet_address: null // Could fetch Current Merchant wallet if connected
+    };
 
-    showToast("Order placed", "success");
+    await api('POST', '/api/orders/create', body);
+
+    showToast("Order placed successfully! Check 'My Orders'.", "success");
     loadMyOrders();
+    loadMarketplace();
 
   } catch (err) {
     console.error("Buy failed:", err);
-    showToast("Buy failed", "error");
+    showToast("Buy failed: " + err.message, "error");
   }
 }
 

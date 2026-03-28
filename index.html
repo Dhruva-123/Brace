@@ -67,14 +67,12 @@
             <label>Country</label>
             <select id="reg-country">
               <option value="">Select your country</option>
-              <option value="IN">India</option>
-              <option value="DE">Germany</option>
-              <option value="US">United States</option>
-              <option value="GB">United Kingdom</option>
-              <option value="AE">UAE</option>
-              <option value="CN">China</option>
-              <option value="JP">Japan</option>
-              <option value="SG">Singapore</option>
+              <option value="India">India</option>
+              <option value="Germany">Germany</option>
+              <option value="United Kingdom">United Kingdom</option>
+              <option value="United States">United States</option>
+              <option value="China">China</option>
+              <option value="UAE">UAE</option>
             </select>
           </div>
           <div class="field-group">
@@ -284,14 +282,12 @@
               <label>Origin Country</label>
               <select id="deal-origin">
                 <option value="">Select origin</option>
-                <option value="IN">India</option>
-                <option value="DE">Germany</option>
-                <option value="US">United States</option>
-                <option value="GB">United Kingdom</option>
-                <option value="AE">UAE</option>
-                <option value="CN">China</option>
-                <option value="JP">Japan</option>
-                <option value="SG">Singapore</option>
+                <option value="India">India</option>
+                <option value="Germany">Germany</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="United States">United States</option>
+                <option value="China">China</option>
+                <option value="UAE">UAE</option>
               </select>
             </div>
             <div class="route-arrow">→</div>
@@ -299,14 +295,12 @@
               <label>Destination Country</label>
               <select id="deal-dest">
                 <option value="">Select destination</option>
-                <option value="IN">India</option>
-                <option value="DE">Germany</option>
-                <option value="US">United States</option>
-                <option value="GB">United Kingdom</option>
-                <option value="AE">UAE</option>
-                <option value="CN">China</option>
-                <option value="JP">Japan</option>
-                <option value="SG">Singapore</option>
+                <option value="India">India</option>
+                <option value="Germany">Germany</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="United States">United States</option>
+                <option value="China">China</option>
+                <option value="UAE">UAE</option>
               </select>
             </div>
           </div>
@@ -448,23 +442,23 @@
             <div class="field-group">
               <label>Origin Country</label>
               <select id="tax-origin">
-                <option value="IN">India</option>
-                <option value="DE">Germany</option>
-                <option value="US">United States</option>
-                <option value="GB">United Kingdom</option>
-                <option value="AE">UAE</option>
-                <option value="CN">China</option>
+                <option value="India">India</option>
+                <option value="Germany">Germany</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="United States">United States</option>
+                <option value="China">China</option>
+                <option value="UAE">UAE</option>
               </select>
             </div>
             <div class="field-group">
               <label>Destination Country</label>
               <select id="tax-dest">
-                <option value="DE">Germany</option>
-                <option value="IN">India</option>
-                <option value="US">United States</option>
-                <option value="GB">United Kingdom</option>
-                <option value="AE">UAE</option>
-                <option value="CN">China</option>
+                <option value="Germany">Germany</option>
+                <option value="India">India</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="United States">United States</option>
+                <option value="China">China</option>
+                <option value="UAE">UAE</option>
               </select>
             </div>
           </div>
@@ -520,10 +514,12 @@
             <div class="field-group">
               <label>Your Country</label>
               <select id="mkt-origin">
-                <option value="IN">India</option>
-                <option value="DE">Germany</option>
-                <option value="US">United States</option>
-                <option value="GB">United Kingdom</option>
+                <option value="India">India</option>
+                <option value="Germany">Germany</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="United States">United States</option>
+                <option value="China">China</option>
+                <option value="UAE">UAE</option>
               </select>
             </div>
           </div>
@@ -622,6 +618,15 @@
             <div class="stat-sub">All time</div>
           </div>
         </div>
+        <div class="section-divider" style="margin-top: 2rem;">
+          <span>🤖 AI Matchmaking</span>
+        </div>
+        <div style="margin-bottom: 1.5rem; text-align: center;">
+             <p class="page-desc" style="font-size: 0.9em;">Powered by Priority Queue Match Scoring</p>
+             <button class="btn btn-outline" style="margin-top: 0.5rem;" onclick="loadAutoMatches()">Refresh Auto-Matches</button>
+        </div>
+        <div id="auto-matches-list" class="deal-list" style="margin-bottom: 2rem;"></div>
+
         <div class="section-divider">
           <span>Recent Orders</span>
         </div>
@@ -634,19 +639,21 @@
           <h2 class="page-title">Marketplace</h2>
           <p class="page-desc">Browse active trade deals from verified sellers worldwide</p>
         </div>
-        <div class="marketplace-filters">
-          <div class="field-group" style="max-width:280px">
-            <input type="text" id="mkt-search" placeholder="Search products..." oninput="loadMarketplace()" />
+        <div class="marketplace-search-wrap">
+          <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="mkt-search" placeholder="Search products, HS codes, or sellers..." oninput="loadMarketplace()" />
+            <button class="btn-search" onclick="loadMarketplace()">Search</button>
           </div>
-          <div class="field-group" style="max-width:160px">
+          <div class="filter-group">
             <select id="mkt-filter-origin" onchange="loadMarketplace()">
               <option value="">All Origins</option>
-              <option value="IN">India</option>
-              <option value="DE">Germany</option>
-              <option value="US">United States</option>
-              <option value="GB">United Kingdom</option>
-              <option value="AE">UAE</option>
-              <option value="CN">China</option>
+              <option value="India">India</option>
+              <option value="Germany">Germany</option>
+              <option value="United Kingdom">United Kingdom</option>
+              <option value="United States">United States</option>
+              <option value="China">China</option>
+              <option value="UAE">UAE</option>
             </select>
           </div>
         </div>
