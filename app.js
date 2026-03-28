@@ -622,10 +622,11 @@ async function loadCommodityList() {
     _commodityCache = data;
     const select = document.getElementById('rec-product');
     if (select && data.commodities) {
+      select.innerHTML = '<option value="">Select a commodity...</option>';
       data.commodities.forEach(c => {
         const opt = document.createElement('option');
-        opt.value = c.name;
-        opt.textContent = `${c.name} (${c.unit} — $${c.price_2023})`;
+        opt.value = c.commodity;
+        opt.textContent = `${c.commodity} (${c.unit} — $${c.price_2023})`;
         select.appendChild(opt);
       });
     }
@@ -726,12 +727,12 @@ async function getSellerRecommendation() {
             <span class="factor-value ${rec.best_factors.inflation_diff > 0 ? 'negative' : 'positive'}">${rec.best_factors.inflation_diff > 0 ? '+' : ''}${rec.best_factors.inflation_diff.toFixed(2)}%</span>
           </div>
           <div class="factor-chip">
-            <span class="factor-label">Demand</span>
-            <span class="factor-value positive">×${rec.best_factors.demand_factor.toFixed(3)}</span>
+            <span class="factor-label">Risk Premium</span>
+            <span class="factor-value ${rec.best_factors.risk_premium > 0 ? 'negative' : 'positive'}">+${(rec.best_factors.risk_premium * 100).toFixed(1)}%</span>
           </div>
           <div class="factor-chip">
-            <span class="factor-label">Sentiment</span>
-            <span class="factor-value ${rec.best_factors.news_sentiment >= 0 ? 'positive' : 'negative'}">×${rec.best_factors.news_factor.toFixed(3)}</span>
+            <span class="factor-label">Affinity Discount</span>
+            <span class="factor-value ${rec.best_factors.affinity_advantage > 0 ? 'positive' : ''}">-${(rec.best_factors.affinity_advantage * 100).toFixed(1)}%</span>
           </div>
         </div>
       </div>
@@ -1087,24 +1088,41 @@ function openMarketplaceDealDetail(dealId) {
 // Orders = my deals
 async function loadMyOrders() {
   try {
-    const { deals } = await api('GET', '/api/deals/my-deals');
+    const { orders } = await api('GET', '/api/orders/my-orders');
 
     const container = document.getElementById('my-orders-list');
     if (!container) return;
 
     container.innerHTML = '';
 
-    deals.forEach(d => {
+    orders.forEach(o => {
+      let payButton = '';
+      if (o.status === 'pending') {
+        payButton = `<button class="btn-primary" style="margin-top: 0.5rem;" onclick="payStripe('${o.id}')">Pay with Stripe</button>`;
+      }
       container.innerHTML += `
-        <div class="order-card">
-          <p><strong>${d.product_name}</strong></p>
-          <p>Status: ${d.status}</p>
+        <div class="order-card" style="padding: 1rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem;">
+          <p><strong>${escHtml(o.product_name)}</strong></p>
+          <p>Total: $${formatNumber(o.agreed_price)}</p>
+          <p>Status: <span class="status-${o.status}">${o.status}</span></p>
+          ${payButton}
         </div>
       `;
     });
 
   } catch (err) {
     console.error("Orders error:", err);
+  }
+}
+
+async function payStripe(orderId) {
+  try {
+    const sessionRes = await api('POST', '/api/stripe/create-checkout-session', { order_id: orderId });
+    if (sessionRes.url) {
+       window.location.href = sessionRes.url;
+    }
+  } catch(err) {
+    showToast("Stripe error: " + err.message, "error");
   }
 }
 
@@ -1118,7 +1136,16 @@ async function buyDeal(dealId, qty) {
       wallet_address: null // Could fetch Current Merchant wallet if connected
     };
 
-    await api('POST', '/api/orders/create', body);
+    const res = await api('POST', '/api/orders/create', body);
+    
+    // Auto-redirect to Stripe
+    if(res.order) {
+       const sessionRes = await api('POST', '/api/stripe/create-checkout-session', { order_id: res.order.id });
+       if (sessionRes.url) {
+          window.location.href = sessionRes.url;
+          return;
+       }
+    }
 
     showToast("Order placed successfully! Check 'My Orders'.", "success");
     loadMyOrders();
