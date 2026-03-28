@@ -6,31 +6,56 @@
 'use strict';
 
 // ─────────────────────────────────────────────
-//  STATE
+//  STATE & SUPABASE INIT
 // ─────────────────────────────────────────────
+const SUPABASE_URL = 'https://cwfwudgpbkmfiszvezcf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN3Znd1ZGdwYmttZmlzenZlemNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NzU3MDcsImV4cCI6MjA5MDI1MTcwN30.zxEEaeNK95Gut7BuRJmfQy6cY9mL-Qp2i0f_WYkd0Is';
+
+// Initialize Supabase client
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const State = {
-  merchant:      null,
-  currentPage:   'dashboard',
+  merchant: null,
+  currentPage: 'dashboard',
   dashboardStats: null
 };
 
 // ─────────────────────────────────────────────
 //  API HELPER
 // ─────────────────────────────────────────────
-async function api(method, endpoint, body = null) {
-  const opts = {
-    method,
-    headers:     { 'Content-Type': 'application/json' },
-    credentials: 'include'
+async function api(method, url, body) {
+  const headers = {
+    'Content-Type': 'application/json'
   };
-  if (body) opts.body = JSON.stringify(body);
 
-  const response = await fetch(endpoint, opts);
-  const data     = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error || `HTTP ${response.status}`);
+  // Securely grab the active Supabase token and attach it
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
   }
+
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_) {}
+
+  if (!res.ok) {
+    let errorMsg = `HTTP ${res.status}`;
+    if (data && data.error) {
+      errorMsg = data.error;
+    } else if (text) {
+      errorMsg = text;
+    }
+    throw new Error(errorMsg);
+  }
+
   return data;
 }
 
@@ -40,7 +65,7 @@ async function api(method, endpoint, body = null) {
 function showToast(message, type = 'success') {
   const toast = document.getElementById('toast');
   toast.textContent = message;
-  toast.className   = `toast ${type}`;
+  toast.className = `toast ${type}`;
   toast.classList.remove('hidden');
   clearTimeout(toast._timeout);
   toast._timeout = setTimeout(() => toast.classList.add('hidden'), 3500);
@@ -50,19 +75,31 @@ function showToast(message, type = 'success') {
 //  AUTH
 // ─────────────────────────────────────────────
 function switchAuth(mode) {
-  document.getElementById('login-form').classList.toggle('active',    mode === 'login');
+  document.getElementById('login-form').classList.toggle('active', mode === 'login');
   document.getElementById('register-form').classList.toggle('active', mode === 'register');
 }
 
 async function handleLogin() {
-  const email    = document.getElementById('login-email').value.trim();
+  const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
-  const errEl    = document.getElementById('login-error');
+  const errEl = document.getElementById('login-error');
 
   errEl.classList.add('hidden');
+
   try {
-    const data = await api('POST', '/api/auth/login', { email, password });
-    State.merchant = data.merchant;
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) throw error;
+
+    State.merchant = {
+      id: data.user.id,
+      email: data.user.email,
+      name: data.user.user_metadata?.name || 'Merchant'
+    };
+
     enterApp();
   } catch (err) {
     errEl.textContent = err.message;
@@ -71,26 +108,26 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
-  const name     = document.getElementById('reg-name').value.trim();
-  const company  = document.getElementById('reg-company').value.trim();
-  const email    = document.getElementById('reg-email').value.trim();
-  const country  = document.getElementById('reg-country').value;
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-password').value;
-  const agreed   = document.getElementById('reg-agree').checked;
-  const errEl    = document.getElementById('reg-error');
+  const errEl = document.getElementById('reg-error');
 
   errEl.classList.add('hidden');
 
-  if (!agreed) {
-    errEl.textContent = 'You must agree to the Terms of Service to continue.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-
   try {
-    const data = await api('POST', '/api/auth/register', { name, company, email, country, password });
-    State.merchant = data.merchant;
-    enterApp();
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name }
+      }
+    });
+
+    if (error) throw error;
+
+    showToast("Account created. Please login.");
+    switchAuth('login');
   } catch (err) {
     errEl.textContent = err.message;
     errEl.classList.remove('hidden');
@@ -98,7 +135,7 @@ async function handleRegister() {
 }
 
 async function handleLogout() {
-  await api('POST', '/api/auth/logout');
+  await supabaseClient.auth.signOut();
   State.merchant = null;
   document.getElementById('main-app').classList.add('hidden');
   document.getElementById('auth-gate').classList.remove('hidden');
@@ -110,7 +147,7 @@ function enterApp() {
 
   const name = State.merchant?.name || 'Merchant';
   document.getElementById('sidebar-merchant').textContent = name;
-  document.getElementById('topbar-merchant').textContent  = name;
+  document.getElementById('topbar-merchant').textContent = name;
 
   navigate('dashboard');
 }
@@ -119,15 +156,15 @@ function enterApp() {
 //  NAVIGATION
 // ─────────────────────────────────────────────
 const PAGE_TITLES = {
-  'dashboard':   'Dashboard',
-  'new-deal':    'New Deal',
-  'my-deals':    'My Deals',
+  'dashboard': 'Dashboard',
+  'new-deal': 'New Deal',
+  'my-deals': 'My Deals',
   'trust-score': 'Trust Score',
-  'tax-calc':    'Tax Calculator',
-  'fx-rates':    'FX Rates',
-  'markets':     'AI Markets',
-  'disputes':    'Disputes',
-  'audit':       'Audit Log'
+  'tax-calc': 'Tax Calculator',
+  'fx-rates': 'FX Rates',
+  'markets': 'AI Markets',
+  'disputes': 'Disputes',
+  'audit': 'Audit Log'
 };
 
 function navigate(page) {
@@ -146,12 +183,14 @@ function navigate(page) {
   document.getElementById('topbar-title').textContent = PAGE_TITLES[page] || page;
 
   // Load data per page
-  if (page === 'dashboard')   loadDashboard();
-  if (page === 'my-deals')    loadMyDeals();
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'my-deals') loadMyDeals();
   if (page === 'trust-score') loadTrustScore();
-  if (page === 'fx-rates')    loadFX();
-  if (page === 'disputes')    loadDisputes();
-  if (page === 'audit')       loadAuditLog();
+  if (page === 'fx-rates') loadFX();
+  if (page === 'disputes') loadDisputes();
+  if (page === 'audit') loadAuditLog();
+  if (page === 'marketplace') loadMarketplace();
+  if (page === 'my-orders') loadMyOrders();
 }
 
 // ─────────────────────────────────────────────
@@ -163,10 +202,10 @@ async function loadDashboard() {
     State.dashboardStats = stats;
 
     // Stat cards
-    setStatCard('stat-volume',    `$${formatNumber(stats.trade_volume_usd)}`, 'USD equivalent');
-    setStatCard('stat-credit',    `${stats.credit_score.toFixed(1)}`,         stats.verification_tier + ' tier');
-    setStatCard('stat-deals',     stats.active_deals,                         'In progress');
-    setStatCard('stat-completed', stats.completed_deals,                      'All time');
+    setStatCard('stat-volume', `$${formatNumber(stats.trade_volume_usd)}`, 'USD equivalent');
+    setStatCard('stat-credit', `${stats.credit_score.toFixed(1)}`, stats.verification_tier + ' tier');
+    setStatCard('stat-deals', stats.active_deals, 'In progress');
+    setStatCard('stat-completed', stats.completed_deals, 'All time');
 
     // Recent deals
     const container = document.getElementById('recent-deals-list');
@@ -184,7 +223,7 @@ function setStatCard(id, value, sub) {
   const card = document.getElementById(id);
   if (!card) return;
   card.querySelector('.stat-value').textContent = value;
-  card.querySelector('.stat-sub').textContent   = sub;
+  card.querySelector('.stat-sub').textContent = sub;
 }
 
 // ─────────────────────────────────────────────
@@ -222,7 +261,7 @@ function dealCard(deal, showActions = false) {
 async function openDealModal(dealId) {
   try {
     const { deal } = await api('GET', `/api/deals/${dealId}`);
-    const content  = `
+    const content = `
       <div class="modal-doc-title">${escHtml(deal.product_name)}</div>
       ${docField('Deal ID', deal.id)}
       ${docField('Route', `${deal.origin_country} → ${deal.dest_country}`)}
@@ -311,7 +350,7 @@ function closeModal() {
 //  NEW DEAL
 // ─────────────────────────────────────────────
 async function previewDealPricing() {
-  const basePrice    = Number(document.getElementById('deal-price').value) || 0;
+  const basePrice = Number(document.getElementById('deal-price').value) || 0;
   const declaredGrade = Number(document.getElementById('deal-grade').value) || 75;
 
   if (!basePrice) { showToast('Enter a base price first', 'error'); return; }
@@ -320,32 +359,32 @@ async function previewDealPricing() {
   try {
     const { score } = await api('GET', '/api/trust/my-score');
     creditScore = score.composite_score;
-  } catch (_) {}
+  } catch (_) { }
 
-  const gradeF  = Math.pow(declaredGrade / 100, 0.5);
-  const trustF  = 0.7 + (creditScore / 100) * 0.3;
-  const riskD   = 0.95;
-  const finalP  = basePrice * gradeF * trustF * riskD;
+  const gradeF = Math.pow(declaredGrade / 100, 0.5);
+  const trustF = 0.7 + (creditScore / 100) * 0.3;
+  const riskD = 0.95;
+  const finalP = basePrice * gradeF * trustF * riskD;
 
-  document.getElementById('prev-base').textContent  = `$${formatNumber(basePrice)}`;
+  document.getElementById('prev-base').textContent = `$${formatNumber(basePrice)}`;
   document.getElementById('prev-grade').textContent = `×${gradeF.toFixed(3)}`;
   document.getElementById('prev-trust').textContent = `×${trustF.toFixed(3)}`;
-  document.getElementById('prev-risk').textContent  = `×${riskD.toFixed(3)}`;
+  document.getElementById('prev-risk').textContent = `×${riskD.toFixed(3)}`;
   document.getElementById('prev-final').textContent = `$${formatNumber(finalP)}`;
   document.getElementById('deal-pricing-preview').classList.remove('hidden');
 }
 
 async function createDeal() {
   const body = {
-    product_name:   document.getElementById('deal-product').value.trim(),
-    hs_code:        document.getElementById('deal-hs').value.trim(),
+    product_name: document.getElementById('deal-product').value.trim(),
+    hs_code: document.getElementById('deal-hs').value.trim(),
     origin_country: document.getElementById('deal-origin').value,
-    dest_country:   document.getElementById('deal-dest').value,
-    quantity:       Number(document.getElementById('deal-qty').value),
-    unit:           document.getElementById('deal-unit').value,
+    dest_country: document.getElementById('deal-dest').value,
+    quantity: Number(document.getElementById('deal-qty').value),
+    unit: document.getElementById('deal-unit').value,
     declared_grade: Number(document.getElementById('deal-grade').value),
-    base_price:     Number(document.getElementById('deal-price').value),
-    currency:       'USD'
+    base_price: Number(document.getElementById('deal-price').value),
+    currency: 'USD'
   };
 
   const errEl = document.getElementById('deal-error');
@@ -380,7 +419,7 @@ async function loadTrustScore() {
 
     // Animate gauge
     document.getElementById('gauge-number').textContent = s.toFixed(1);
-    document.getElementById('gauge-tier').textContent   = score.verification_tier.toUpperCase() + ' TIER';
+    document.getElementById('gauge-tier').textContent = score.verification_tier.toUpperCase() + ' TIER';
 
     // Arc: 251.2 = full circumference of our gauge arc
     const offset = 251.2 - (s / 100) * 251.2;
@@ -388,15 +427,15 @@ async function loadTrustScore() {
 
     // Color by tier
     const arcEl = document.getElementById('gauge-arc');
-    if (score.verification_tier === 'high')   arcEl.style.stroke = 'var(--teal)';
+    if (score.verification_tier === 'high') arcEl.style.stroke = 'var(--teal)';
     if (score.verification_tier === 'medium') arcEl.style.stroke = 'var(--amber)';
-    if (score.verification_tier === 'low')    arcEl.style.stroke = '#e09080';
+    if (score.verification_tier === 'low') arcEl.style.stroke = '#e09080';
 
     // Metric bars
     updateMetricBar('bar-tsr', score.transaction_success_rate);
     updateMetricBar('bar-gas', score.grade_accuracy_score);
     updateMetricBar('bar-dri', score.dispute_ratio_inverse);
-    updateMetricBar('bar-dt',  score.delivery_timeliness);
+    updateMetricBar('bar-dt', score.delivery_timeliness);
     updateMetricBar('bar-bfs', score.buyer_feedback_score);
   } catch (err) {
     showToast('Failed to load trust score: ' + err.message, 'error');
@@ -406,7 +445,7 @@ async function loadTrustScore() {
 function updateMetricBar(barId, value) {
   const bar = document.getElementById(barId);
   if (!bar) return;
-  bar.querySelector('.bar-fill').style.width    = `${(value * 100).toFixed(0)}%`;
+  bar.querySelector('.bar-fill').style.width = `${(value * 100).toFixed(0)}%`;
   bar.querySelector('.metric-score').textContent = value.toFixed(2);
 }
 
@@ -416,9 +455,9 @@ function updateMetricBar(barId, value) {
 async function calculateTax() {
   const body = {
     origin_country: document.getElementById('tax-origin').value,
-    dest_country:   document.getElementById('tax-dest').value,
-    trade_value:    Number(document.getElementById('tax-value').value),
-    hs_code:        document.getElementById('tax-hs').value.trim()
+    dest_country: document.getElementById('tax-dest').value,
+    trade_value: Number(document.getElementById('tax-value').value),
+    hs_code: document.getElementById('tax-hs').value.trim()
   };
 
   if (!body.trade_value) { showToast('Enter a trade value', 'error'); return; }
@@ -448,13 +487,13 @@ async function calculateTax() {
 //  FX RATES
 // ─────────────────────────────────────────────
 async function loadFX() {
-  const base      = document.getElementById('fx-base')?.value || 'USD';
+  const base = document.getElementById('fx-base')?.value || 'USD';
   const container = document.getElementById('fx-grid');
   container.innerHTML = '<div style="color:var(--text-dim);font-size:0.8rem">Loading rates...</div>';
 
   try {
     const { rates, updated, source } = await api('GET', `/api/fx/rates?base=${base}`);
-    const SHOW = ['USD','EUR','GBP','INR','JPY','AED','CNY','SGD','AUD','CAD','CHF','BRL'];
+    const SHOW = ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'AED', 'CNY', 'SGD', 'AUD', 'CAD', 'CHF', 'BRL'];
 
     container.innerHTML = SHOW
       .filter(c => c !== base && rates[c])
@@ -477,8 +516,8 @@ async function loadFX() {
 //  AI MARKET INTELLIGENCE
 // ─────────────────────────────────────────────
 async function getMarketIntel() {
-  const product     = document.getElementById('mkt-product').value.trim();
-  const origin      = document.getElementById('mkt-origin').value;
+  const product = document.getElementById('mkt-product').value.trim();
+  const origin = document.getElementById('mkt-origin').value;
   const description = document.getElementById('mkt-desc').value.trim();
 
   if (!product) { showToast('Enter a product name', 'error'); return; }
@@ -489,8 +528,8 @@ async function getMarketIntel() {
 
   try {
     const data = await api('POST', '/api/ai/recommend-markets', {
-      product_name:        product,
-      origin_country:      origin,
+      product_name: product,
+      origin_country: origin,
       product_description: description
     });
 
@@ -540,7 +579,7 @@ async function raiseDispute() {
     await api('POST', '/api/disputes/raise', { deal_id: dealId, reason });
     showToast('Dispute submitted. Platform will mediate.');
     document.getElementById('dispute-deal-id').value = '';
-    document.getElementById('dispute-reason').value  = '';
+    document.getElementById('dispute-reason').value = '';
     loadDisputes();
   } catch (err) {
     showToast('Failed to raise dispute: ' + err.message, 'error');
@@ -608,7 +647,7 @@ function formatDate(dt) {
 
 function escHtml(str) {
   if (!str) return '';
-  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function emptyState(icon, text) {
@@ -626,9 +665,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
   if (e.key === 'Enter') {
     const loginForm = document.getElementById('login-form');
-    const regForm   = document.getElementById('register-form');
+    const regForm = document.getElementById('register-form');
     if (loginForm?.classList.contains('active')) handleLogin();
-    if (regForm?.classList.contains('active'))   handleRegister();
+    if (regForm?.classList.contains('active')) handleRegister();
   }
 });
 
@@ -642,11 +681,128 @@ document.getElementById('deal-modal')?.addEventListener('click', e => {
 // ─────────────────────────────────────────────
 (async function boot() {
   try {
-    const { merchant } = await api('GET', '/api/auth/me');
-    State.merchant = merchant;
+    const { data: { user }, error } = await supabaseClient.auth.getUser();
+
+    if (error || !user) {
+      document.getElementById('auth-gate').classList.remove('hidden');
+      return;
+    }
+
+    State.merchant = {
+      id: user.id,
+      email: user.email,
+      name: user.user_metadata?.name || 'Merchant'
+    };
+
     enterApp();
-  } catch (_) {
-    // Not logged in — show auth gate
+
+  } catch (e) {
+    console.error('Boot error:', e);
     document.getElementById('auth-gate').classList.remove('hidden');
   }
 })();
+
+// ================= BUYER SIDE FIXES =================
+
+// Role switching
+function switchRole(role) {
+  console.log("Switching role:", role);
+
+  const sellerNav = document.getElementById('nav-seller');
+  const buyerNav = document.getElementById('nav-buyer');
+
+  const sellerBtn = document.getElementById('role-btn-seller');
+  const buyerBtn = document.getElementById('role-btn-buyer');
+
+  if (role === 'buyer') {
+    sellerNav.classList.add('hidden');
+    buyerNav.classList.remove('hidden');
+
+    sellerBtn.classList.remove('active');
+    buyerBtn.classList.add('active');
+
+    navigate('buyer-dashboard');
+
+  } else {
+    buyerNav.classList.add('hidden');
+    sellerNav.classList.remove('hidden');
+
+    buyerBtn.classList.remove('active');
+    sellerBtn.classList.add('active');
+
+    navigate('dashboard');
+  }
+}
+
+
+// Marketplace = deals
+async function loadMarketplace() {
+  try {
+    const deals = await api('GET', '/api/deals');
+
+    const container = document.getElementById('marketplace-grid');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    deals.forEach(d => {
+      container.innerHTML += `
+        <div class="deal-card">
+          <h3>${d.product_name || 'Product'}</h3>
+          <p>Price: $${d.price}</p>
+          <p>${d.origin} → ${d.destination}</p>
+          <button onclick="buyDeal('${d.id}')">Buy</button>
+        </div>
+      `;
+    });
+
+  } catch (err) {
+    console.error("Marketplace error:", err);
+  }
+}
+
+
+// Orders = my deals
+async function loadMyOrders() {
+  try {
+    const { deals } = await api('GET', '/api/deals/my-deals');
+
+    const container = document.getElementById('my-orders-list');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    deals.forEach(d => {
+      container.innerHTML += `
+        <div class="order-card">
+          <p><strong>${d.product_name}</strong></p>
+          <p>Status: ${d.status}</p>
+        </div>
+      `;
+    });
+
+  } catch (err) {
+    console.error("Orders error:", err);
+  }
+}
+
+
+// Buy action
+async function buyDeal(dealId) {
+  try {
+    await api('POST', `/api/deals/${dealId}/buy`);
+
+    showToast("Order placed", "success");
+    loadMyOrders();
+
+  } catch (err) {
+    console.error("Buy failed:", err);
+    showToast("Buy failed", "error");
+  }
+}
+
+
+// Temporary wallet
+function connectWallet() {
+  showToast("Wallet feature coming soon", "error");
+}

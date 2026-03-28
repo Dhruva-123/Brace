@@ -4,10 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Brace — Global Trade OS</title>
+  <meta name="description" content="Brace — A programmable trust, credit, and verification OS for global trade. Buyer & Seller dashboards with Web3 payments." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <!-- Web3.js CDN (Garbage Goober pattern: Web3.js for Polygon/MetaMask integration) -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.4/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <!-- ════════════════════════════════════════
@@ -25,10 +29,10 @@
       <!-- Login Form -->
       <div id="login-form" class="auth-form active">
         <h2>Welcome back</h2>
-        <p class="form-hint">Sign in to your merchant account</p>
+        <p class="form-hint">Sign in to your account</p>
         <div class="field-group">
           <label>Email</label>
-          <input type="email" id="login-email" placeholder="merchant@company.com" />
+          <input type="email" id="login-email" placeholder="user@company.com" />
         </div>
         <div class="field-group">
           <label>Password</label>
@@ -43,7 +47,7 @@
       <!-- Register Form -->
       <div id="register-form" class="auth-form">
         <h2>Join Brace</h2>
-        <p class="form-hint">Create your merchant account</p>
+        <p class="form-hint">Create your trade account</p>
         <div class="field-row">
           <div class="field-group">
             <label>Full Name</label>
@@ -58,19 +62,29 @@
           <label>Email</label>
           <input type="email" id="reg-email" placeholder="arjun@mehtaexports.com" />
         </div>
-        <div class="field-group">
-          <label>Country</label>
-          <select id="reg-country">
-            <option value="">Select your country</option>
-            <option value="IN">India</option>
-            <option value="DE">Germany</option>
-            <option value="US">United States</option>
-            <option value="GB">United Kingdom</option>
-            <option value="AE">UAE</option>
-            <option value="CN">China</option>
-            <option value="JP">Japan</option>
-            <option value="SG">Singapore</option>
-          </select>
+        <div class="field-row">
+          <div class="field-group">
+            <label>Country</label>
+            <select id="reg-country">
+              <option value="">Select your country</option>
+              <option value="IN">India</option>
+              <option value="DE">Germany</option>
+              <option value="US">United States</option>
+              <option value="GB">United Kingdom</option>
+              <option value="AE">UAE</option>
+              <option value="CN">China</option>
+              <option value="JP">Japan</option>
+              <option value="SG">Singapore</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>I am a</label>
+            <select id="reg-role">
+              <option value="both">Buyer & Seller</option>
+              <option value="buyer">Buyer</option>
+              <option value="seller">Seller</option>
+            </select>
+          </div>
         </div>
         <div class="field-group">
           <label>Password</label>
@@ -98,7 +112,19 @@
         <span class="brand-hex">⬡</span>
         <span class="brand-name">Brace</span>
       </div>
-      <nav class="sidebar-nav">
+
+      <!-- Role Toggle -->
+      <div class="role-toggle-wrap">
+        <button class="role-btn active" id="role-btn-seller" onclick="switchRole('seller')">
+          <span class="role-icon">◈</span> Seller
+        </button>
+        <button class="role-btn" id="role-btn-buyer" onclick="switchRole('buyer')">
+          <span class="role-icon">◉</span> Buyer
+        </button>
+      </div>
+
+      <!-- SELLER NAV -->
+      <nav class="sidebar-nav" id="nav-seller">
         <a href="#" class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
           <span class="nav-icon">◈</span> Dashboard
         </a>
@@ -107,6 +133,9 @@
         </a>
         <a href="#" class="nav-item" data-page="my-deals" onclick="navigate('my-deals')">
           <span class="nav-icon">◎</span> My Deals
+        </a>
+        <a href="#" class="nav-item" data-page="seller-orders" onclick="navigate('seller-orders')">
+          <span class="nav-icon">▤</span> Incoming Orders
         </a>
         <a href="#" class="nav-item" data-page="trust-score" onclick="navigate('trust-score')">
           <span class="nav-icon">◆</span> Trust Score
@@ -120,6 +149,9 @@
         <a href="#" class="nav-item" data-page="markets" onclick="navigate('markets')">
           <span class="nav-icon">◕</span> AI Markets
         </a>
+        <a href="#" class="nav-item" data-page="remix-seller" onclick="navigate('remix-seller')">
+          <span class="nav-icon">⬡</span> Smart Contract
+        </a>
         <a href="#" class="nav-item" data-page="disputes" onclick="navigate('disputes')">
           <span class="nav-icon">◐</span> Disputes
         </a>
@@ -127,7 +159,44 @@
           <span class="nav-icon">▣</span> Audit Log
         </a>
       </nav>
+
+      <!-- BUYER NAV -->
+      <nav class="sidebar-nav hidden" id="nav-buyer">
+        <a href="#" class="nav-item active" data-page="buyer-dashboard" onclick="navigate('buyer-dashboard')">
+          <span class="nav-icon">◈</span> Dashboard
+        </a>
+        <a href="#" class="nav-item" data-page="marketplace" onclick="navigate('marketplace')">
+          <span class="nav-icon">▦</span> Marketplace
+        </a>
+        <a href="#" class="nav-item" data-page="my-orders" onclick="navigate('my-orders')">
+          <span class="nav-icon">◎</span> My Orders
+        </a>
+        <a href="#" class="nav-item" data-page="web3-wallet" onclick="navigate('web3-wallet')">
+          <span class="nav-icon">⬡</span> Web3 Wallet
+        </a>
+        <a href="#" class="nav-item" data-page="remix-buyer" onclick="navigate('remix-buyer')">
+          <span class="nav-icon">◆</span> Smart Contract
+        </a>
+        <a href="#" class="nav-item" data-page="tax-calc" onclick="navigate('tax-calc')">
+          <span class="nav-icon">◇</span> Tax Calculator
+        </a>
+        <a href="#" class="nav-item" data-page="fx-rates" onclick="navigate('fx-rates')">
+          <span class="nav-icon">◯</span> FX Rates
+        </a>
+        <a href="#" class="nav-item" data-page="disputes" onclick="navigate('disputes')">
+          <span class="nav-icon">◐</span> Disputes
+        </a>
+        <a href="#" class="nav-item" data-page="audit" onclick="navigate('audit')">
+          <span class="nav-icon">▣</span> Audit Log
+        </a>
+      </nav>
+
       <div class="sidebar-footer">
+        <!-- Web3 status indicator -->
+        <div class="web3-status" id="web3-status">
+          <span class="web3-dot disconnected"></span>
+          <span class="web3-label">Wallet not connected</span>
+        </div>
         <a href="/policy" target="_blank" class="footer-link">Legal & Policy</a>
         <button class="btn-logout" onclick="handleLogout()">Sign Out</button>
         <div class="merchant-badge" id="sidebar-merchant"></div>
@@ -139,14 +208,28 @@
       <div class="topbar">
         <div class="topbar-title" id="topbar-title">Dashboard</div>
         <div class="topbar-right">
+          <button class="wallet-connect-btn" id="topbar-wallet-btn" onclick="connectWallet()">
+            <span class="wallet-icon">⬡</span>
+            <span id="wallet-btn-text">Connect Wallet</span>
+          </button>
           <div class="merchant-chip" id="topbar-merchant"></div>
         </div>
       </div>
 
-      <!-- ── DASHBOARD ── -->
+      <!-- ═══ NOTIFICATION BAR (Socket.IO real-time) ═══ -->
+      <div id="realtime-bar" class="realtime-bar hidden">
+        <span id="realtime-text"></span>
+        <button class="realtime-close" onclick="document.getElementById('realtime-bar').classList.add('hidden')">✕</button>
+      </div>
+
+      <!-- ══════════════════════════════════════
+           SELLER PAGES
+      ══════════════════════════════════════ -->
+
+      <!-- ── SELLER DASHBOARD ── -->
       <section id="page-dashboard" class="page active">
         <div class="page-header">
-          <h2 class="page-title">Overview</h2>
+          <h2 class="page-title">Seller Overview</h2>
           <p class="page-desc">Your trade operations at a glance</p>
         </div>
         <div class="stat-grid" id="stat-grid">
@@ -281,6 +364,15 @@
           <p class="page-desc">All your active and historical trade deals</p>
         </div>
         <div id="my-deals-list" class="deal-list"></div>
+      </section>
+
+      <!-- ── SELLER INCOMING ORDERS ── -->
+      <section id="page-seller-orders" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Incoming Orders</h2>
+          <p class="page-desc">Orders placed by buyers on your deals</p>
+        </div>
+        <div id="seller-orders-list" class="deal-list"></div>
       </section>
 
       <!-- ── TRUST SCORE ── -->
@@ -452,6 +544,232 @@
         </div>
       </section>
 
+      <!-- ── REMIX IDE SLOT: SELLER ── -->
+      <section id="page-remix-seller" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Smart Contract — Seller</h2>
+          <p class="page-desc">Deploy and manage your trade smart contracts via Remix IDE</p>
+        </div>
+        <!-- REMIX_IDE_INTEGRATION_POINT: Seller Smart Contract Slot -->
+        <div class="remix-slot-card">
+          <div class="remix-slot-header">
+            <span class="remix-icon">⬡</span>
+            <div>
+              <div class="remix-slot-title">Remix IDE — Seller Contract Space</div>
+              <div class="remix-slot-desc">Connect your Remix IDE instance or deploy contracts directly</div>
+            </div>
+          </div>
+          <div class="remix-config">
+            <div class="field-group">
+              <label>Remix IDE URL <span class="optional">(iframe source)</span></label>
+              <input type="text" id="remix-seller-url" placeholder="https://remix.ethereum.org" value="https://remix.ethereum.org" />
+            </div>
+            <div class="field-row">
+              <div class="field-group">
+                <label>Contract Address</label>
+                <input type="text" id="seller-contract-address" placeholder="0x..." />
+              </div>
+              <div class="field-group">
+                <label>Contract ABI <span class="optional">(JSON)</span></label>
+                <textarea id="seller-contract-abi" rows="2" placeholder='[{"inputs":[],"name":"..."}]'></textarea>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-secondary" onclick="loadRemixIDE('seller')">Load Remix IDE</button>
+              <button class="btn-primary" onclick="saveContractConfig('seller')">Save Contract Config</button>
+            </div>
+          </div>
+          <!-- REMIX_IDE_INTEGRATION_POINT: Seller iframe container -->
+          <div id="remix-ide-seller-slot" class="remix-iframe-container">
+            <div class="remix-placeholder">
+              <span class="remix-placeholder-icon">⬡</span>
+              <p>Click "Load Remix IDE" to embed the IDE here</p>
+              <p class="remix-placeholder-sub">Or paste your contract address above after deploying from Remix</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════
+           BUYER PAGES
+      ══════════════════════════════════════ -->
+
+      <!-- ── BUYER DASHBOARD ── -->
+      <section id="page-buyer-dashboard" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Buyer Overview</h2>
+          <p class="page-desc">Your purchasing operations at a glance</p>
+        </div>
+        <div class="stat-grid" id="buyer-stat-grid">
+          <div class="stat-card buyer-card" id="stat-spent">
+            <div class="stat-label">Total Spent</div>
+            <div class="stat-value">—</div>
+            <div class="stat-sub">USD equivalent</div>
+          </div>
+          <div class="stat-card buyer-card highlight" id="stat-buyer-rating">
+            <div class="stat-label">Buyer Rating</div>
+            <div class="stat-value">—</div>
+            <div class="stat-sub">Out of 5.0</div>
+          </div>
+          <div class="stat-card buyer-card" id="stat-active-orders">
+            <div class="stat-label">Active Orders</div>
+            <div class="stat-value">—</div>
+            <div class="stat-sub">In progress</div>
+          </div>
+          <div class="stat-card buyer-card" id="stat-completed-orders">
+            <div class="stat-label">Completed</div>
+            <div class="stat-value">—</div>
+            <div class="stat-sub">All time</div>
+          </div>
+        </div>
+        <div class="section-divider">
+          <span>Recent Orders</span>
+        </div>
+        <div id="recent-orders-list" class="deal-list"></div>
+      </section>
+
+      <!-- ── MARKETPLACE ── -->
+      <section id="page-marketplace" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Marketplace</h2>
+          <p class="page-desc">Browse active trade deals from verified sellers worldwide</p>
+        </div>
+        <div class="marketplace-filters">
+          <div class="field-group" style="max-width:280px">
+            <input type="text" id="mkt-search" placeholder="Search products..." oninput="loadMarketplace()" />
+          </div>
+          <div class="field-group" style="max-width:160px">
+            <select id="mkt-filter-origin" onchange="loadMarketplace()">
+              <option value="">All Origins</option>
+              <option value="IN">India</option>
+              <option value="DE">Germany</option>
+              <option value="US">United States</option>
+              <option value="GB">United Kingdom</option>
+              <option value="AE">UAE</option>
+              <option value="CN">China</option>
+            </select>
+          </div>
+        </div>
+        <div id="marketplace-grid" class="marketplace-grid">Loading marketplace...</div>
+      </section>
+
+      <!-- ── MY ORDERS (BUYER) ── -->
+      <section id="page-my-orders" class="page">
+        <div class="page-header">
+          <h2 class="page-title">My Orders</h2>
+          <p class="page-desc">Track your purchase orders and payment status</p>
+        </div>
+        <div id="my-orders-list" class="deal-list"></div>
+      </section>
+
+      <!-- ── WEB3 WALLET ── -->
+      <section id="page-web3-wallet" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Web3 Wallet</h2>
+          <p class="page-desc">Connect your MetaMask wallet for blockchain payments on Polygon</p>
+        </div>
+        <div class="web3-wallet-card">
+          <div class="wallet-hero">
+            <div class="wallet-hero-icon">⬡</div>
+            <h3 class="wallet-hero-title">Polygon Network</h3>
+            <p class="wallet-hero-desc">Powered by Web3.js — inspired by the garbage_goober decentralized reward pattern</p>
+          </div>
+          <div class="wallet-info-grid">
+            <div class="wallet-info-item">
+              <div class="wallet-info-label">Connection Status</div>
+              <div class="wallet-info-value" id="w3-status">Not Connected</div>
+            </div>
+            <div class="wallet-info-item">
+              <div class="wallet-info-label">Wallet Address</div>
+              <div class="wallet-info-value mono" id="w3-address">—</div>
+            </div>
+            <div class="wallet-info-item">
+              <div class="wallet-info-label">Network</div>
+              <div class="wallet-info-value" id="w3-network">—</div>
+            </div>
+            <div class="wallet-info-item">
+              <div class="wallet-info-label">Balance</div>
+              <div class="wallet-info-value" id="w3-balance">—</div>
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:1.5rem">
+            <button class="btn-primary wallet-action-btn" onclick="connectWallet()" id="w3-connect-btn">
+              <span class="wallet-icon">⬡</span> Connect MetaMask
+            </button>
+            <button class="btn-secondary" onclick="switchNetwork()">Switch to Polygon</button>
+          </div>
+
+          <!-- REMIX_IDE_INTEGRATION_POINT: Contract interaction panel -->
+          <div class="contract-panel" id="contract-panel">
+            <div class="form-section-label">Contract Interaction</div>
+            <div class="field-group">
+              <label>Contract Address</label>
+              <input type="text" id="w3-contract-addr" placeholder="0x... (from Remix IDE deployment)" />
+            </div>
+            <div class="field-group">
+              <label>Method to Call</label>
+              <input type="text" id="w3-method" placeholder="e.g. makePayment, releaseFunds" />
+            </div>
+            <div class="field-group">
+              <label>Arguments <span class="optional">(comma-separated)</span></label>
+              <input type="text" id="w3-args" placeholder="arg1, arg2" />
+            </div>
+            <div class="field-group">
+              <label>Value (MATIC) <span class="optional">(for payable methods)</span></label>
+              <input type="number" id="w3-value" placeholder="0.1" step="0.001" />
+            </div>
+            <button class="btn-primary" onclick="executeContractCall()">Execute Contract Call</button>
+            <div id="w3-result" class="pricing-preview hidden" style="margin-top:1rem"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── REMIX IDE SLOT: BUYER ── -->
+      <section id="page-remix-buyer" class="page">
+        <div class="page-header">
+          <h2 class="page-title">Smart Contract — Buyer</h2>
+          <p class="page-desc">Interact with trade and escrow smart contracts</p>
+        </div>
+        <!-- REMIX_IDE_INTEGRATION_POINT: Buyer Smart Contract Slot -->
+        <div class="remix-slot-card">
+          <div class="remix-slot-header">
+            <span class="remix-icon buyer-remix-icon">⬡</span>
+            <div>
+              <div class="remix-slot-title">Remix IDE — Buyer Contract Space</div>
+              <div class="remix-slot-desc">Interact with escrow, payment, and trade contracts</div>
+            </div>
+          </div>
+          <div class="remix-config">
+            <div class="field-group">
+              <label>Remix IDE URL <span class="optional">(iframe source)</span></label>
+              <input type="text" id="remix-buyer-url" placeholder="https://remix.ethereum.org" value="https://remix.ethereum.org" />
+            </div>
+            <div class="field-row">
+              <div class="field-group">
+                <label>Escrow Contract Address</label>
+                <input type="text" id="buyer-escrow-address" placeholder="0x..." />
+              </div>
+              <div class="field-group">
+                <label>Escrow ABI <span class="optional">(JSON)</span></label>
+                <textarea id="buyer-escrow-abi" rows="2" placeholder='[{"inputs":[],"name":"..."}]'></textarea>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-secondary" onclick="loadRemixIDE('buyer')">Load Remix IDE</button>
+              <button class="btn-primary" onclick="saveContractConfig('buyer')">Save Escrow Config</button>
+            </div>
+          </div>
+          <!-- REMIX_IDE_INTEGRATION_POINT: Buyer iframe container -->
+          <div id="remix-ide-buyer-slot" class="remix-iframe-container">
+            <div class="remix-placeholder">
+              <span class="remix-placeholder-icon buyer-remix-icon">⬡</span>
+              <p>Click "Load Remix IDE" to embed the IDE here</p>
+              <p class="remix-placeholder-sub">Or paste your escrow contract address above</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ── DISPUTES ── -->
       <section id="page-disputes" class="page">
         <div class="page-header">
@@ -499,6 +817,8 @@
   <!-- TOAST -->
   <div id="toast" class="toast hidden"></div>
 
+  <!-- Socket.IO Client -->
+  <script src="/socket.io/socket.io.js" onerror="console.warn('Socket.IO client not available — real-time features disabled')"></script>
   <script src="app.js"></script>
 </body>
 </html>
