@@ -1,0 +1,45 @@
+commodity,unit,price_2022,price_2023
+Coal (Australia),$/mt,100.0,95.0
+Crude oil (Brent),$/bbl,64.0,60.0
+Natural gas (Europe),$/mmbtu,11.6,10.6
+Natural gas (US),$/mmbtu,3.3,3.4
+LNG (Japan),$/mmbtu,12.5,11.5
+Cocoa,$/kg,8.00,7.00
+Coffee Arabica,$/kg,8.50,7.25
+Coffee Robusta,$/kg,5.50,5.00
+Tea,$/kg,2.50,2.80
+Coconut oil,$/mt,1800,1750
+Groundnut oil,$/mt,1685,1670
+Palm oil,$/mt,1020,1040
+Soybean meal,$/mt,370,369
+Soybean oil,$/mt,990,967
+Soybeans,$/mt,382,386
+Maize,$/mt,187,183
+Rice (Thailand 5%),$/mt,421,422
+Wheat (US HRW),$/mt,263,260
+Bananas,$/kg,1.23,1.20
+Beef,$/kg,5.90,5.91
+Chicken,$/kg,1.40,1.38
+Oranges,$/kg,1.85,1.75
+Sugar,$/kg,0.44,0.43
+Logs (Africa),$/cum,390,395
+Logs (SE Asia),$/cum,200,210
+Sawnwood (SE Asia),$/cum,690,700
+Cotton,$/kg,1.65,1.70
+Rubber,$/kg,2.00,1.90
+Tobacco,$/mt,5300,5000
+DAP,$/mt,600,550
+Phosphate rock,$/mt,155,160
+Potassium chloride,$/mt,310,315
+TSP,$/mt,470,465
+Urea,$/mt,390,375
+Aluminum,$/mt,2175,2100
+Copper,$/mt,8200,8000
+Iron ore,$/dmt,95.0,88.0
+Lead,$/mt,2030,2000
+Nickel,$/mt,15800,16000
+Tin,$/mt,31000,31500
+Zinc,$/mt,2500,2375
+Gold,$/toz,3250,3200
+Silver,$/toz,33.0,34.0
+Platinum,$/toz,1050,1075

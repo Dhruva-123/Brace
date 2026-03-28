@@ -162,7 +162,7 @@ const PAGE_TITLES = {
   'trust-score': 'Trust Score',
   'tax-calc': 'Tax Calculator',
   'fx-rates': 'FX Rates',
-  'markets': 'AI Markets',
+  'markets': 'AI Market Intelligence',
   'disputes': 'Disputes',
   'audit': 'Audit Log'
 };
@@ -190,6 +190,7 @@ function navigate(page) {
   if (page === 'disputes') loadDisputes();
   if (page === 'audit') loadAuditLog();
   if (page === 'marketplace') loadMarketplace();
+  if (page === 'markets') loadCommodityList();
   if (page === 'my-orders') loadMyOrders();
   if (page === 'buyer-dashboard') loadBuyerDashboard();
 }
@@ -601,8 +602,191 @@ async function loadFX() {
 }
 
 // ─────────────────────────────────────────────
-//  AI MARKET INTELLIGENCE
+//  AI MARKET INTELLIGENCE (Recommender Engine)
 // ─────────────────────────────────────────────
+
+// Tab switching
+function switchAITab(tab) {
+  document.querySelectorAll('.ai-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.ai-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`ai-tab-${tab}`).classList.add('active');
+  document.getElementById(`ai-panel-${tab}`).classList.add('active');
+}
+
+// Load commodity list from server
+let _commodityCache = null;
+async function loadCommodityList() {
+  if (_commodityCache) return _commodityCache;
+  try {
+    const data = await api('GET', '/api/ai/commodities');
+    _commodityCache = data;
+    const select = document.getElementById('rec-product');
+    if (select && data.commodities) {
+      data.commodities.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = `${c.name} (${c.unit} — $${c.price_2023})`;
+        select.appendChild(opt);
+      });
+    }
+    return data;
+  } catch (_) { return null; }
+}
+
+function updateCommodityInfo() {
+  const select = document.getElementById('rec-product');
+  const box = document.getElementById('commodity-info-box');
+  if (!select.value || !_commodityCache) {
+    box.style.display = 'none';
+    return;
+  }
+  const com = _commodityCache.commodities.find(c => c.name === select.value);
+  if (com) {
+    document.getElementById('commodity-ref-name').textContent = com.name;
+    document.getElementById('commodity-ref-price').textContent = `$${com.price_2023} ${com.unit}`;
+    box.style.display = '';
+  }
+}
+
+// Main recommender function
+async function getSellerRecommendation() {
+  const productSelect = document.getElementById('rec-product').value;
+  const productCustom = document.getElementById('rec-product-custom').value.trim();
+  const product = productCustom || productSelect;
+  const buyer = document.getElementById('rec-buyer').value;
+
+  if (!product) { showToast('Select or type a commodity', 'error'); return; }
+  if (!buyer) { showToast('Select your buyer country', 'error'); return; }
+
+  const result = document.getElementById('rec-result');
+  result.classList.remove('hidden');
+  result.innerHTML = `
+    <div class="rec-loading">
+      <div class="rec-loading-spinner"></div>
+      <div class="rec-loading-text">Analyzing ${escHtml(product)} markets...</div>
+      <div class="rec-loading-steps">
+        <div class="rec-step active">📦 Loading commodity prices</div>
+        <div class="rec-step">🏦 Fetching World Bank inflation data</div>
+        <div class="rec-step">💱 Getting live exchange rates</div>
+        <div class="rec-step">📰 Analyzing news sentiment</div>
+        <div class="rec-step">🧠 Computing optimal pricing</div>
+      </div>
+    </div>
+  `;
+
+  // Animate steps
+  const steps = result.querySelectorAll('.rec-step');
+  for (let i = 1; i < steps.length; i++) {
+    await new Promise(r => setTimeout(r, 400));
+    steps[i].classList.add('active');
+  }
+
+  try {
+    const data = await api('POST', '/api/ai/recommend-seller', { product, buyer_country: buyer });
+
+    if (!data.success) {
+      result.innerHTML = `
+        <div class="rec-error">
+          <div class="rec-error-icon">⚠</div>
+          <div class="rec-error-text">${escHtml(data.error || 'No data found')}</div>
+          ${data.available_commodities ? `
+            <div class="rec-commodities-list">
+              <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:0.5rem">Available commodities:</div>
+              <div class="rec-tags">${data.available_commodities.map(c => `<span class="mkt-market-tag">${escHtml(c)}</span>`).join('')}</div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+      return;
+    }
+
+    const rec = data.recommendation;
+    const maxPrice = Math.max(...rec.all_sellers.map(s => s.max_price));
+
+    result.innerHTML = `
+      <!-- Best Seller Hero Card -->
+      <div class="best-seller-card">
+        <div class="best-seller-badge">🏆 BEST SELLER</div>
+        <div class="best-seller-country">${escHtml(rec.best_seller)}</div>
+        <div class="best-seller-commodity">
+          <span class="commodity-badge">${escHtml(rec.commodity)}</span>
+          <span class="commodity-unit">Base: $${formatNumber(rec.base_price_usd)} ${escHtml(rec.commodity_unit)}</span>
+        </div>
+        <div class="best-seller-price">
+          <div class="price-range-visual">
+            <span class="price-min">${formatNumber(rec.best_range[0])}</span>
+            <span class="price-separator">—</span>
+            <span class="price-max">${formatNumber(rec.best_range[1])}</span>
+            <span class="price-currency">${rec.currency}</span>
+          </div>
+        </div>
+        <div class="best-seller-factors">
+          <div class="factor-chip">
+            <span class="factor-label">Inflation Δ</span>
+            <span class="factor-value ${rec.best_factors.inflation_diff > 0 ? 'negative' : 'positive'}">${rec.best_factors.inflation_diff > 0 ? '+' : ''}${rec.best_factors.inflation_diff.toFixed(2)}%</span>
+          </div>
+          <div class="factor-chip">
+            <span class="factor-label">Demand</span>
+            <span class="factor-value positive">×${rec.best_factors.demand_factor.toFixed(3)}</span>
+          </div>
+          <div class="factor-chip">
+            <span class="factor-label">Sentiment</span>
+            <span class="factor-value ${rec.best_factors.news_sentiment >= 0 ? 'positive' : 'negative'}">×${rec.best_factors.news_factor.toFixed(3)}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overall Market Range -->
+      <div class="overall-range-card">
+        <div class="overall-range-label">Overall Market Range (All Sellers)</div>
+        <div class="overall-range-values">
+          <span>${formatNumber(rec.overall_range[0])}</span>
+          <div class="overall-range-bar">
+            <div class="overall-range-fill"></div>
+          </div>
+          <span>${formatNumber(rec.overall_range[1])}</span>
+          <span class="price-currency">${rec.currency}</span>
+        </div>
+      </div>
+
+      <!-- All Sellers Comparison -->
+      <div class="sellers-comparison">
+        <div class="sellers-title">All Seller Countries Ranked</div>
+        <div class="sellers-grid">
+          ${rec.all_sellers.map((s, i) => {
+            const barWidth = maxPrice > 0 ? (s.max_price / maxPrice * 100) : 0;
+            const isBest = s.seller === rec.best_seller;
+            return `
+              <div class="seller-row ${isBest ? 'is-best' : ''}">
+                <div class="seller-rank">${i + 1}</div>
+                <div class="seller-info">
+                  <div class="seller-name">${isBest ? '🏆 ' : ''}${escHtml(s.seller)}</div>
+                  <div class="seller-price-range">${formatNumber(s.min_price)} — ${formatNumber(s.max_price)} ${rec.currency}</div>
+                </div>
+                <div class="seller-bar-wrap">
+                  <div class="seller-bar" style="width:${barWidth}%">
+                    <div class="seller-bar-inner ${isBest ? 'best' : ''}"></div>
+                  </div>
+                </div>
+                <div class="seller-adj-price">$${formatNumber(s.adjusted_price_usd)}<span>/unit</span></div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Disclaimer -->
+      <div style="font-size:0.72rem;color:var(--amber);margin-top:1rem;opacity:0.8">
+        ⚠ ${escHtml(data.disclaimer)}
+      </div>
+    `;
+
+  } catch (err) {
+    result.innerHTML = `<div class="rec-error"><div class="rec-error-icon">✕</div><div class="rec-error-text">${escHtml(err.message)}</div></div>`;
+  }
+}
+
+// Existing market intel function (Tab 2)
 async function getMarketIntel() {
   const product = document.getElementById('mkt-product').value.trim();
   const origin = document.getElementById('mkt-origin').value;
@@ -621,7 +805,7 @@ async function getMarketIntel() {
       product_description: description
     });
 
-    const { intel, ai_insight } = data;
+    const { intel, ai_insight, commodity_data } = data;
 
     const marketsHtml = (intel.top_markets || []).map(m =>
       `<span class="mkt-market-tag">${m}</span>`
@@ -637,6 +821,14 @@ async function getMarketIntel() {
       </div>
     ` : '<div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.5rem">Add your Hugging Face API key in .env to enable live AI sentiment analysis.</div>';
 
+    const commodityHtml = commodity_data ? `
+      <div style="margin-top:0.75rem;padding:0.5rem 0.75rem;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);display:flex;align-items:center;gap:0.75rem">
+        <span class="commodity-badge">${escHtml(commodity_data.commodity)}</span>
+        <span style="font-family:var(--font-mono);font-size:0.82rem;color:var(--teal)">$${commodity_data.price} ${escHtml(commodity_data.unit)}</span>
+        <span style="font-size:0.68rem;color:var(--text-dim)">World Bank Pink Sheet 2023</span>
+      </div>
+    ` : '';
+
     result.innerHTML = `
       <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.75rem">
         Recommended markets for <strong style="color:var(--sand)">${escHtml(product)}</strong> from <strong>${origin}</strong>:
@@ -646,6 +838,7 @@ async function getMarketIntel() {
         Market Demand: <span style="color:var(--teal);font-weight:600">${intel.demand?.toUpperCase() || 'MEDIUM'}</span>
         ${intel.avg_price_usd_mt ? `&nbsp;&nbsp;Avg Price: <span style="color:var(--teal)">$${formatNumber(intel.avg_price_usd_mt)} / MT</span>` : ''}
       </div>
+      ${commodityHtml}
       ${aiHtml}
       <div style="font-size:0.68rem;color:var(--amber);margin-top:0.75rem">⚠ ${data.disclaimer}</div>
     `;
