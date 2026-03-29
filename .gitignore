@@ -1,0 +1,66 @@
+# 🔐 ENV & SECRETS
+
+.env
+.env.*
+*.env
+
+# 🗄️ DATABASE
+
+*.db
+*.sqlite
+*.sqlite3
+brace.db
+
+# 📦 NODE MODULES
+
+node_modules/
+
+# 🧾 LOGS
+
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 🛠️ BUILD / CACHE
+
+dist/
+build/
+.cache/
+.tmp/
+.temp/
+
+# 🧠 OS FILES
+
+.DS_Store
+Thumbs.db
+
+# 🧑‍💻 IDE / EDITOR
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 📁 UPLOADS / GENERATED FILES
+
+uploads/
+generated/
+exports/
+
+# 🔒 KEYS / CERTS
+
+*.pem
+*.key
+*.crt
+
+# 🧪 TEST COVERAGE
+
+coverage/
+
+# 🚀 MISC
+
+*.tgz
+*.zip
+*.tar
