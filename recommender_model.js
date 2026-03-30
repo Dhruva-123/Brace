@@ -108,7 +108,7 @@ function predictPriceRange(product, seller, buyer, basePriceUSD, rates) {
   return {
     min_price: parseFloat((targetPrice * 0.9).toFixed(2)),
     max_price: parseFloat((targetPrice * 1.2).toFixed(2)),
-    adjusted_usd: parseFloat(adjustedUSD.toFixed(2)),
+    adjusted_price_usd: parseFloat(adjustedUSD.toFixed(2)),
     factors: {
       inflation_diff: parseFloat(inflationDiff.toFixed(2)),
       risk_premium: parseFloat((sellerMacro.risk_premium - 1).toFixed(4)),

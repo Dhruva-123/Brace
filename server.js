@@ -1358,7 +1358,7 @@ function getCommodityPrice(product) {
 }
 
 // ── ENDPOINT: Recommend Best Seller ──
-app.post('/api/ai/recommend-seller', requireAuth, async (req, res) => {
+app.post('/api/ai/recommend-seller', async (req, res) => {
   const { product, buyer_country } = req.body;
   const HF_KEY = process.env.HUGGING_FACE_API_KEY;
 
@@ -1395,10 +1395,14 @@ app.post('/api/ai/recommend-seller', requireAuth, async (req, res) => {
         best_seller: bestSeller.seller,
         best_range: [bestSeller.min_price, bestSeller.max_price],
         best_factors: bestSeller.factors,
-        currency: bestSeller.currency || recommenderModel.RECOMMENDER_CURRENCIES[buyer_country],
+        currency: bestSeller.currency || recommenderModel.RECOMMENDER_CURRENCIES[buyer_country] || 'USD',
         commodity: commodity.commodity,
         commodity_unit: commodity.unit,
         base_price_usd: commodity.price_2023,
+        overall_range: [
+          Math.min(...sellerResults.map(s => s.min_price)),
+          Math.max(...sellerResults.map(s => s.max_price))
+        ],
         all_sellers: sellerResults.sort((a, b) => a.min_price - b.min_price)
       },
       ml_models: {
@@ -1413,11 +1417,11 @@ app.post('/api/ai/recommend-seller', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/api/ai/commodities', requireAuth, (req, res) => {
+app.get('/api/ai/commodities', (req, res) => {
   res.json({ success: true, commodities: COMMODITY_PRICES });
 });
 
-app.post('/api/ai/recommend-markets', requireAuth, async (req, res) => {
+app.post('/api/ai/recommend-markets', async (req, res) => {
   const { product_name, origin_country } = req.body;
   const commodityInfo = getCommodityPrice(product_name || '');
   

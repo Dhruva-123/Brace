@@ -641,9 +641,9 @@ function updateCommodityInfo() {
     box.style.display = 'none';
     return;
   }
-  const com = _commodityCache.commodities.find(c => c.name === select.value);
+  const com = _commodityCache.commodities.find(c => c.commodity === select.value);
   if (com) {
-    document.getElementById('commodity-ref-name').textContent = com.name;
+    document.getElementById('commodity-ref-name').textContent = com.commodity;
     document.getElementById('commodity-ref-price').textContent = `$${com.price_2023} ${com.unit}`;
     box.style.display = '';
   }
